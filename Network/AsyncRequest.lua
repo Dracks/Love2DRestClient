@@ -6,6 +6,7 @@
 -- To change this template use File | Settings | File Templates.
 --
 
+require "love.filesystem"
 require "Utils/ObjectOriented"
 
 local http = require("socket.http")
