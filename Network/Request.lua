@@ -13,12 +13,16 @@ require "Utils/List"
 local json=require("libraries/dkjson")
 
 Request=inheritsFrom(nil);
-function Request:init()
+
+
+function Request:init(url)
 	self.thread=love.thread.newThread("thread", "Network/AsyncRequest.lua")
 	self.thread:start()
+	self.thread:set("url", url);
 	self.busy=false;
 	self.asyncResponse=List:alloc():init()
 	self.asyncTasks=List:alloc():init();
+	return self;
 end
 
 function Request:launchTask()
@@ -30,6 +34,11 @@ end
 
 function Request:async(action, arguments, method, header, response)
 	self.asyncResponse:push(response);
+	-- print (json.encode(arguments))
+	-- print (json.encode(header))
+	if header==nil then
+		header={}
+	end
 	local data={action=action, arguments=arguments, method=method, header=header }
 	self.asyncTasks:push(json.encode(data));
 	self:launchTask();
@@ -39,7 +48,7 @@ function Request:update()
 	local ret=self.thread:get("result")
 	if ret~=nil then
 		local method=self.asyncResponse:popFirst()
-		-- print("Request:update", method)
+		-- print("Request:response", method, ret)
 		method(json.decode(ret));
 		self.thread:set("endaction", true);
 		self.busy=false;
@@ -51,5 +60,3 @@ function Request:quit()
 	self.thread:set("action", json.encode({action="quit"}))
 	self.thread:wait()
 end
-
-Request:init()

@@ -7,8 +7,9 @@
 --
 
 require "Utils/ObjectOriented"
+
 local http = require("socket.http")
-local json=require("libraries/dkjson")
+local json=require("libraries.dkjson")
 local ltn12 = require("ltn12")
 local url = require("socket.url")
 
@@ -16,28 +17,25 @@ AsyncRequest=inheritsFrom(nil);
 
 function AsyncRequest:init()
 	self.thread= love.thread.getThread();
+	self.url=self.thread:demand("url");
 	return self;
 end
 
 
 function AsyncRequest:request(action, arguments, header, method)
-	-- print("Request", action, arguments, header)
+	-- print("Request", method, action, json.encode(arguments), json.encode(header))
 	local textArguments=""
 	local rtable={};
-	if header==nil then
-		header={}
-	end
 
 	local request={
-		--url="http://www.server.com/api.php?action="..action,
-		url="http://api.geonames.org/"..action.."?",
+		url=self.url:gsub(":action:",action),
 		method=method,
 		headers=header,
 		sink = ltn12.sink.table(rtable)
 	}
 	if arguments~=nil then
 		for key, value in pairs(arguments) do
-			--print ("arguments", key, value);
+			-- print ("arguments", key, value);
 			textArguments=textArguments.."&"..key.."="..value
 		end
 	end
@@ -54,14 +52,24 @@ function AsyncRequest:request(action, arguments, header, method)
 		request.source = ltn12.source.string(textArguments)
 	end
 	--print "step 2"
-	--print(request.url);
 
 	local okCode, code, header=http.request(request);
 	--print (okCode, code, header);
 
 	local response=table.concat(rtable);
 
-	--print(response,code,header)
+	if okCode ~= 1 then
+		print(okCode)
+		print(code)
+		for k,v in pairs(header) do
+			print(k,v)
+		end
+		print(response)
+	end
+
+	-- print("Response:", okCode, code)
+	-- print ("header-json:", json.encode(header))
+	-- print (response)
 	self.thread:set("result", json.encode({response=response, header=header, code=code}));
 	self.thread:demand("endaction");
 end
@@ -70,9 +78,9 @@ function AsyncRequest:run()
 	local active=true;
 	local data;
 	while active do
-		--print("Wait")
+		-- print("Wait")
 		local rawData=self.thread:demand("action");
-		--print(rawData);
+		-- print('data', rawData);
 		data=json.decode(rawData)
 		if data.action~="quit" then
 			--print (data.arguments);
@@ -84,3 +92,4 @@ function AsyncRequest:run()
 end
 
 AsyncRequest:init():run();
+
