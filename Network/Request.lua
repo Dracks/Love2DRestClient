@@ -12,13 +12,19 @@ require "Utils/List"
 -- local http = require("socket.http")
 local json=require("libraries/dkjson")
 
+local threadCounter=0
+
 Request=inheritsFrom(nil);
-
-
 function Request:init(url)
-	self.thread=love.thread.newThread("thread", "Network/AsyncRequest.lua")
-	self.thread:start()
-	self.thread:set("url", url);
+	self.thread=love.thread.newThread('Network/AsyncRequest.lua')
+	local channelName='RequestChannel'..threadCounter
+	threadCounter=threadCounter+1
+	self.channel={
+		action=love.thread.getChannel(channelName..'action'),
+		result=love.thread.getChannel(channelName..'result'),
+		-- endaction=love.thread.getChannel(channelName..'endaction')
+	}
+	self.thread:start(channelName, url)
 	self.busy=false;
 	self.asyncResponse=List:alloc():init()
 	self.asyncTasks=List:alloc():init();
@@ -27,7 +33,7 @@ end
 
 function Request:launchTask()
 	if self.busy==false and self.asyncTasks:length()>0 then
-		self.thread:set("action",self.asyncTasks:popFirst());
+		self.channel.action:push(self.asyncTasks:popFirst());
 		self.busy=true
 	end
 end
@@ -45,18 +51,18 @@ function Request:async(action, arguments, method, header, response)
 end
 
 function Request:update()
-	local ret=self.thread:get("result")
+	local ret=self.channel.result:pop()
 	if ret~=nil then
 		local method=self.asyncResponse:popFirst()
 		-- print("Request:response", method, ret)
 		method(json.decode(ret));
-		self.thread:set("endaction", true);
+		--self.channel.endaction:push(true);
 		self.busy=false;
 	end
 	self:launchTask();
 end
 
 function Request:quit()
-	self.thread:set("action", json.encode({action="quit"}))
+	self.channel.action:push(json.encode({action="quit"}))
 	self.thread:wait()
 end

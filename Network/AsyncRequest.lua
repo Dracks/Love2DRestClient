@@ -5,7 +5,6 @@
 -- Time: 11:59 AM
 -- To change this template use File | Settings | File Templates.
 --
-
 require "love.filesystem"
 require "Utils/ObjectOriented"
 
@@ -16,9 +15,17 @@ local url = require("socket.url")
 
 AsyncRequest=inheritsFrom(nil);
 
-function AsyncRequest:init()
-	self.thread= love.thread.getThread();
-	self.url=self.thread:demand("url");
+function AsyncRequest:init(channelName, url)
+	-- print("Async:init", channelName, url)
+	-- self.thread= love.thread.getThread();
+	self.url=url
+
+	self.channel={
+		action=love.thread.getChannel(channelName..'action'),
+		result=love.thread.getChannel(channelName..'result'),
+		-- endaction=love.thread.getChannel(channelName..'endaction')
+	}
+
 	return self;
 end
 
@@ -71,8 +78,8 @@ function AsyncRequest:request(action, arguments, header, method)
 	-- print("Response:", okCode, code)
 	-- print ("header-json:", json.encode(header))
 	-- print (response)
-	self.thread:set("result", json.encode({response=response, header=header, code=code}));
-	self.thread:demand("endaction");
+	self.channel.result:push(json.encode({response=response, header=header, code=code}));
+	--self.channel.endaction.demand();
 end
 
 function AsyncRequest:run()
@@ -80,7 +87,7 @@ function AsyncRequest:run()
 	local data;
 	while active do
 		-- print("Wait")
-		local rawData=self.thread:demand("action");
+		local rawData=self.channel.action:demand();
 		-- print('data', rawData);
 		data=json.decode(rawData)
 		if data.action~="quit" then
@@ -91,6 +98,6 @@ function AsyncRequest:run()
 		end
 	end
 end
-
-AsyncRequest:init():run();
-
+-- print "AsyncRequest"
+-- print(select('#',...), select(1,...), select(2,...))
+AsyncRequest:init(select(1,...), select(2,...)):run();
